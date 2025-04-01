@@ -212,15 +212,7 @@ _set_overrides() {
 _usage() {
   local \
     _exit="${1}" \
-    _deployment \
-    _networks=() \
     _usage_text
-  _deployment="${deployments_dir}/SourceIndex"
-  _networks=( $( \
-    evm-contract-deployment-networks \
-      -A \
-      "${_deployment}")
-  )
   IFS='' \
     read \
       -r \
