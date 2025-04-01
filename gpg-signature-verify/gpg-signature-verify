@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+
+# SPDX-License-Identifier: AGPL-3.0
+
+#    ----------------------------------------------------------------------
+#    Copyright © 2024, 2025  Pellegrino Prevete
+#
+#    All rights reserved
+#    ----------------------------------------------------------------------
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+_bin="$( \
+  dirname \
+    "$( \
+      command \
+        -v \
+	  "env")")"
+_lib="$( \
+  realpath \
+    "${_bin}/../lib")"
+_crash_bash="${_lib}/libcrash-bash/crash-bash"
+_sourced \
+  "${_crash_bash}" 2>/dev/null || \
+  source \
+    "${_crash_bash}"
+
+# shellcheck disable=SC2034
+_global_variables() {
+  verify_date=""
+  signature_type=""
+  gnupg_home=""
+  color=""
+  quiet=""
+}
+
+# Check all required programs
+# are available
+_requirements() {
+  _check_cmd \
+    'gpg' \
+    'gnupg'
+}
+
+
+_signature_keyring_verify() {
+  local \
+    _gpg_out="${1}" \
+    _nopubkey_string \
+    _goodsig_string \
+    _fingerprint_string \
+    _errsig_string \
+    _fingerprint
+   _nopubkey_string="$( \
+    echo \
+      "${_gpg_out}" | \
+      grep \
+        "^\[GNUPG:\] NO_PUBKEY " || \
+      true)"
+  _goodsig_string="$( \
+    echo \
+      "${_gpg_out}" | \
+      grep \
+        "^\[GNUPG:\] GOODSIG " || \
+      true)"
+  if [[ "${_nopubkey_string}" == "" ]] && \
+     [[ "${_goodsig_string}" != "" ]]; then
+    _fingerprint_string="$( \
+      echo \
+        "${_gpg_out}" | \
+        grep \
+          "^\[GNUPG:\] KEY_CONSIDERED " || \
+        true)"
+    _fingerprint="$( \
+      echo \
+        "${_fingerprint_string}" | \
+        awk \
+          '{print $3}')"
+    _msg=(
+      "The key used to sign the archive"
+      "is correct and has fingerprint"
+      "'${_fingerprint}'."
+    )
+  elif [[ "${_nopubkey_string}" != "" ]] && \
+       [[ "${_goodsig_string}" == "" ]]; then
+    _errsig_string="$( \
+      echo \
+        "${_gpg_out}" | \
+        grep \
+          "^\[GNUPG:\] ERRSIG " || \
+        true)"
+    _fingerprint="$( \
+      echo \
+        "${_errsig_string}" | \
+        awk \
+          '{print $9}')"
+    _msg=(
+      "File signed with unknown"
+      "fingerprint '${_fingerprint}'."
+      "If you are sure the fingerprint"
+      "is indeed correct run"
+      "'ur-publishers update'"
+      "to update the Ur publishers"
+      "signatures' database."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  fi
+}
+
+_gpg_signature_verify() {
+  local \
+    _signature_type="${1}" \
+    _gnupg_home="${2}" \
+    _target_file="${3}" \
+    _signatures=() \
+    _gpg_opts=() \
+    _gpg_out
+  shift \
+    3
+  _signatures=(
+    "$@"
+  )
+  _gpg_opts+=(
+    --homedir
+      "${_gnupg_home}"
+    --with-colons
+    --status-fd
+      1
+    --verify
+  )
+  if [[ ! -e "${_target_file}" ]]; then
+    _msg=(
+      "The file '${_target_file}'"
+      "does not exist."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  fi
+  if [[ "${quiet}" == "y" ]]; then
+    _gpg_out="$( \
+      gpg \
+        "${_gpg_opts[@]}" \
+        "${_target_file}" 2>/dev/null || \
+      true)"
+  elif [[ "${quiet}" == "n" ]]; then
+    _gpg_out="$( \
+      gpg \
+        "${_gpg_opts[@]}" \
+        "${_target_file}" || \
+      true)"
+  fi
+  if [[ "${_gpg_out}" == "" ]]; then
+    _msg=(
+      "Error verifying file signature."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  fi
+  for _publisher in "${_signatures[@]}"; do
+    # _signature_author_verify \
+    #   "${_publisher}" \
+    #   "${_gpg_out}"
+    _signature_keyring_verify \
+      "${_gpg_out}"
+  done
+}
+
+# Set defaults and, if present, overrides
+# command line option parameters
+_set_overrides() {
+  if [[ -v override_color ]]; then
+    color="${override_color}"
+  elif [[ -z "${color}" ]]; then
+    color="n"
+  fi
+  if [[ -v override_quiet ]]; then
+    quiet="${override_quiet}"
+  elif [[ -z "${quiet}" ]]; then
+    quiet="y"
+  fi
+  _set_override \
+    "verify" \
+    "date" \
+    "$(_get_date_human)"
+  _set_override \
+    "signature" \
+    "type" \
+    "file"
+  _set_override \
+    "gnupg" \
+    "home" \
+    "${HOME}/.config/${app_name}/gnupg"
+}
+
+# Show help usage, with an exit status.
+# $1: exit status number.
+_usage() {
+  local \
+    _exit="${1}" \
+    _deployment \
+    _networks=() \
+    _usage_text
+  _deployment="${deployments_dir}/SourceIndex"
+  _networks=( $( \
+    evm-contract-deployment-networks \
+      -A \
+      "${_deployment}")
+  )
+  IFS='' \
+    read \
+      -r \
+      -d '' \
+      _usage_text << \
+        ENDUSAGETEXT || true
+
+Verify a file is cryptographically signed with one of the input keys.
+
+Usage:
+  ${app_name}
+    [options]
+    <target_file>
+    [target_keys]
+
+  options:
+     -t <signature_type>    It can be 'file' or 'fingerprint'.
+                            Default: ${signature_type}
+     -H <gnupg_home>        GnuPG home (for when the signature type
+			    is 'fingeprint').
+                            Default: ${gnupg_home}
+
+     -c                     Colors.
+     -h                     This message.
+     -v                     Enable verbose output
+ENDUSAGETEXT
+  _printf \
+    '%s\n' \
+    "${_usage_text}"
+  exit \
+    "${_exit}"
+}
+
+# Shows configuration options.
+_show_config() {
+  _msg_info "${app_name} configuration"
+  _msg_info "                    Verify date:   ${get_date}"
+  _msg_info "                 Signature type:   ${signature_type}"
+  _msg_info "           GnuPG home directory:   ${gnupg_home}"
+  _msg_info "                    Target file:   ${target_file}"
+  _msg_info "              Target signatures:   ${target_signatures[*]}"
+}
+
+
+_globals
+_global_variables
+_requirements
+# shellcheck disable=SC2004
+# shellcheck disable=SC2034
+while \
+  getopts \
+    't:H:cvh?' \
+    arg; do
+  case \
+    "${arg}" in
+    t) \
+      override_signature_type="${OPTARG}" ;;
+    H) \
+      override_gnupg_home="${OPTARG}" ;;
+    c) \
+      override_color="y" ;;
+    v) \
+      override_quiet="n" ;;
+    h|?) _set_overrides && \
+	 _usage \
+           0 ;;
+    *)
+    _msg_error \
+      "Invalid argument '${arg}'." \
+      0 && \
+    _set_overrides && \
+    _usage \
+      1
+    ;;
+  esac
+done
+shift \
+  $(( \
+    OPTIND - 1 \
+  ))
+if (( $# < 1 )); then
+  _msg_error \
+    "No signed file or signature file specified." \
+    0
+  _usage \
+    1
+fi
+if (( $# < 2 )); then
+  _msg_error \
+    "No signature or fingerprint specified." \
+    0
+  _usage \
+    1
+fi
+target_file="${1}"
+shift \
+  1
+target_signatures=(
+  "$@"
+)
+_set_overrides
+_show_config
+app_opts=(
+  "${signature_type}"
+  "${gnupg_home}"
+  "${target_file}"
+  "${target_signatures[@]}"
+)
