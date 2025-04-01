@@ -60,7 +60,8 @@ _fingerprint_extract() {
     _goodsig_string \
     _fingerprint_string \
     _errsig_string
-   _nopubkey_string="$( \
+  _file_fingerprint=""
+  _nopubkey_string="$( \
     echo \
       "${_gpg_out}" | \
       grep \
@@ -88,8 +89,10 @@ _fingerprint_extract() {
     _msg=(
       "The key used to sign the archive"
       "is correct and has fingerprint"
-      "'${_fingerprint}'."
+      "'${_file_fingerprint}'."
     )
+    _msg_info \
+      "${_msg[*]}"
   elif [[ "${_nopubkey_string}" != "" ]] && \
        [[ "${_goodsig_string}" == "" ]]; then
     _errsig_string="$( \
