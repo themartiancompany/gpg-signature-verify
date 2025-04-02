@@ -49,131 +49,9 @@ _global_variables() {
 # are available
 _requirements() {
   _check_cmd \
-    'gpg' \
-    'gnupg'
-}
-
-_fingerprint_extract() {
-  local \
-    _gpg_out="${1}" \
-    _nopubkey_string \
-    _goodsig_string \
-    _fingerprint_string \
-    _errsig_string
-  _file_fingerprint=""
-  _nopubkey_string="$( \
-    echo \
-      "${_gpg_out}" | \
-      grep \
-        "^\[GNUPG:\] NO_PUBKEY " || \
-      true)"
-  _goodsig_string="$( \
-    echo \
-      "${_gpg_out}" | \
-      grep \
-        "^\[GNUPG:\] GOODSIG " || \
-      true)"
-  if [[ "${_nopubkey_string}" == "" ]] && \
-     [[ "${_goodsig_string}" != "" ]]; then
-    _fingerprint_string="$( \
-      echo \
-        "${_gpg_out}" | \
-        grep \
-          "^\[GNUPG:\] KEY_CONSIDERED " || \
-        true)"
-    _file_fingerprint="$( \
-      echo \
-        "${_fingerprint_string}" | \
-        awk \
-          '{print $3}')"
-    _msg=(
-      "The key used to sign the archive"
-      "is correct and has fingerprint"
-      "'${_file_fingerprint}'."
-    )
-    _msg_info \
-      "${_msg[*]}"
-  elif [[ "${_nopubkey_string}" != "" ]] && \
-       [[ "${_goodsig_string}" == "" ]]; then
-    _errsig_string="$( \
-      echo \
-        "${_gpg_out}" | \
-        grep \
-          "^\[GNUPG:\] ERRSIG " || \
-        true)"
-    _file_fingerprint="$( \
-      echo \
-        "${_errsig_string}" | \
-        awk \
-          '{print $9}')"
-	
-    _msg=(
-      "File correctly signed with unknown"
-      "fingerprint '${_file_fingerprint}'."
-    )
-    _msg_info \
-      "${_msg[*]}"
-  fi
-  if [[ "${_file_fingerprint}" == "" ]]; then
-    _msg=(
-      "The fingerprint for the signature"
-      "has not been found in the GPG output."
-    )
-    _msg_error \
-      "${_msg[*]}" \
-      1
-  fi
-}
-
-_gpg_run() {
-  local \
-    _file="${1}" \
-    _gnupg_home="${2}"
-    _gpg_opts=() \
-    _msg=()
-  _gpg_opts+=(
-    --homedir
-      "${_gnupg_home}"
-    --with-colons
-    --status-fd
-      1
-    --verify
-  )
-  if [[ ! -e "${_file}" ]]; then
-    _msg=(
-      "The file '${_file}'"
-      "does not exist."
-    )
-    _msg_error \
-      "${_msg[*]}" \
-      1
-  fi
-  _msg=(
-    "Checking signature for '${_file}'."
-  )
-  _msg_info \
-    "${_msg[*]}"
-  if [[ "${quiet}" == "y" ]]; then
-    _gpg_out="$( \
-      gpg \
-        "${_gpg_opts[@]}" \
-        "${_file}" 2>/dev/null || \
-      true)"
-  elif [[ "${quiet}" == "n" ]]; then
-    _gpg_out="$( \
-      gpg \
-        "${_gpg_opts[@]}" \
-        "${_file}" || \
-      true)"
-  fi
-  if [[ "${_gpg_out}" == "" ]]; then
-    _msg=(
-      "Error verifying file signature."
-    )
-    _msg_error \
-      "${_msg[*]}" \
-      1
-  fi
+    'gpg-key-info'
+  _check_cmd \
+    'gpg-signature-info'
 }
 
 _gpg_signature_verify() {
@@ -183,7 +61,7 @@ _gpg_signature_verify() {
     _target_file="${3}" \
     _signatures=() \
     _gpg_key_info_opts=() \
-    _gpg_out \
+    _gpg_signature_info_opts=() \
     _file_fingerprint \
     _target_fingerprint \
     _sig \
@@ -197,11 +75,14 @@ _gpg_signature_verify() {
     -o
       "fingerprint"
   )
-  _gpg_run \
-    "${_target_file}" \
-    "${_gnupg_home}"
-  _fingerprint_extract \
-    "${_gpg_out}"
+  _gpg_signature_info_opts+=(
+    -o
+      "fingerprint"
+  )
+  _file_fingerprint="$( \
+    gpg-signature-info \
+      "${_gpg_signature_info_opts[@]}" \
+      "${_target_file}")"
   _passed="false"
   for _sig in "${_signatures[@]}"; do
     if [[ "${_signature_type}" == "file" ]]; then
@@ -216,9 +97,6 @@ _gpg_signature_verify() {
       _passed="true"
       break
     fi
-    # _signature_author_verify \
-    #   "${_publisher}" \
-    #   "${_gpg_out}"
   done
   if [[ "${_passed}" == "true" ]]; then
     if [[ "${_signature_type}" == "file" ]]; then

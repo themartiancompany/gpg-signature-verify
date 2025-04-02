@@ -30,7 +30,13 @@ The GNU Privacy Guard Signature Verifier
 tool is written using the
 [Crash Bash](
   https://github.com/themartiancompany/crash-bash)
-library.
+library and uses the
+[GPG Key Info](
+  https://github.com/themartiancompany/gpg-key-info)
+and the
+[GPG Signature Info](
+  https://github.com/themartiancompany/gpg-signature-info)
+utilities.
 
 ## Installation
 
