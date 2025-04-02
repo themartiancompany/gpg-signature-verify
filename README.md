@@ -22,7 +22,7 @@
 # GNU Privacy Guard Signature Verifier
 
 The GNU Privacy Guard Signature Verifier
-tool verifies a file is cryptographically
+tool checks a file is cryptographically
 signed with one of the input OpenPGP public
 keys or fingerprints.
 
