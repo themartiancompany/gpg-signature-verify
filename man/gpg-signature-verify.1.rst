@@ -34,10 +34,7 @@ GNU Privacy Guard Signature Verifier tool
 Synopsis
 ========
 
-gpg-signature-verify
-  *[options]*
-  *target_file*
-  *[target_signatures]*
+gpg-signature-verify *[options]* *target_file* *[target_signatures]*
 
 
 Description
