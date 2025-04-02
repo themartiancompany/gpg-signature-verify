@@ -60,7 +60,7 @@ the uncensorable
 [Ur](
   https://github.com/themartiancompany/ur)
 user repository and application store as
-`lur`.
+`gpg-signature-verify`.
 The source code is published on the
 [Ethereum Virtual Machine File System](
   https://github.com/themartiancompany/evmfs)
