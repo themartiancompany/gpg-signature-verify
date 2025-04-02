@@ -76,7 +76,7 @@ _gpg_signature_verify() {
       "fingerprint"
   )
   _gpg_signature_info_opts+=(
-    -o
+    -t
       "fingerprint"
   )
   _file_fingerprint="$( \
